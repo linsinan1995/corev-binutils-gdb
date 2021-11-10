@@ -271,6 +271,12 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 		case 'c':
 		  print (info->stream, "%s",
 		     riscv_gpr_names[EXTRACT_OPERAND (CRS1S, l) + 8]);
+		case 'b':
+		  print (info->stream, "%d", (int)EXTRACT_ZCE_LBU_IMM (l));
+		  break;
+		case 'h':
+		  print (info->stream, "%d", (int)EXTRACT_ZCE_LHU_IMM (l));
+		  break;
 		default: break;
 		}
 	      break;

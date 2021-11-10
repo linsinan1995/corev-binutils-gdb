@@ -640,6 +640,18 @@
 #define MASK_C_ZEXT_W 0xfc7f
 #define MATCH_C_MUL 0x9c41
 #define MASK_C_MUL 0xfc63
+#define MATCH_C_LBU 0x2000
+#define MASK_C_LBU 0xf003
+#define MATCH_C_LHU 0x3000
+#define MASK_C_LHU 0xf003
+#define MATCH_C_LB 0x2002
+#define MASK_C_LB 0xf003
+#define MATCH_C_LH 0x3002
+#define MASK_C_LH 0xf003
+#define MATCH_C_SB 0xa000
+#define MASK_C_SB 0xf003
+#define MATCH_C_SH 0xb000
+#define MASK_C_SH 0xf003
 /* Privileged CSR addresses.  */
 #define CSR_USTATUS 0x0
 #define CSR_UIE 0x4
@@ -1315,6 +1327,12 @@ DECLARE_INSN(c_zext_b, MATCH_C_ZEXT_B, MASK_C_ZEXT_B)
 DECLARE_INSN(c_zext_h, MATCH_C_ZEXT_H, MASK_C_ZEXT_H)
 DECLARE_INSN(c_zext_w, MATCH_C_ZEXT_W, MASK_C_ZEXT_W)
 DECLARE_INSN(c_mul, MATCH_C_MUL, MASK_C_MUL)
+DECLARE_INSN(c_lbu, MATCH_C_LBU, MASK_C_LBU)
+DECLARE_INSN(c_lhu, MATCH_C_LHU, MASK_C_LHU)
+DECLARE_INSN(c_lb, MATCH_C_LB, MASK_C_LB)
+DECLARE_INSN(c_lh, MATCH_C_LH, MASK_C_LH)
+DECLARE_INSN(c_sb, MATCH_C_SB, MASK_C_SB)
+DECLARE_INSN(c_sh, MATCH_C_SH, MASK_C_SH)
 #endif /* DECLARE_INSN */
 #ifdef DECLARE_CSR
 /* Privileged CSRs.  */

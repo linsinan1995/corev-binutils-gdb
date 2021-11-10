@@ -277,8 +277,11 @@ struct riscv_set_options
   int arch_attr; /* Emit architecture and privileged elf attributes.  */
   int csr_check; /* Enable the CSR checking.  */
   int zce_zext;  /* Enable c.zext.b, c.zext.h, c.zext.w (RV64) */
-  int zce_sext;  /* Enable c.sext.b, c.sext.h, c.sext.w (RV64 pseudo) */
+  int zce_sext;  /* Enable c.sext.b, c.sext.h, c.sext.w (RV64 pseudo) */\
   int zce_cmul;  /* Enable c.mul */
+  int zce_clbhu; /* Enable c.lbu, c.lhu */
+  int zce_clbh;  /* Enable c.lb, c.lh */
+  int zce_csbh;  /* Enable c.sb, c.sh */
 };
 
 static struct riscv_set_options riscv_opts =
@@ -291,7 +294,10 @@ static struct riscv_set_options riscv_opts =
   0, /* csr_check */
   0, /* zce_zext */
   0, /* zce_sext */
-  0  /* zce_cmul */
+  0, /* zce_cmul */
+  0, /* zce_clbhu */
+  0, /* zce_clbh */
+  0  /* zce_csbh */
 };
 
 static void
@@ -1095,6 +1101,8 @@ validate_riscv_insn (const struct riscv_opcode *opc, int length)
 	    switch (c = *p++)
 	      {
 		case 'c': USE_BITS (OP_MASK_CRS1S, OP_SH_CRS1S); break;
+		case 'h': used_bits |= ENCODE_ZCE_LHU_IMM (-1U); break;
+		case 'b': used_bits |= ENCODE_ZCE_LBU_IMM (-1U); break;
 		default:
 		  as_bad (_("internal: bad RISC-V opcode "
 			    "(unknown operand type `CZ%c'): %s %s"),
@@ -2393,11 +2401,38 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 			break;
 		      INSERT_OPERAND (CRS1S, *ip, regno % 8);
 		      continue;
+		    case 'h':
+		      if (!((riscv_opts.zce_clbhu && insn->match == MATCH_C_LHU)
+			  || (riscv_opts.zce_clbh && insn->match == MATCH_C_LH)
+			  || (riscv_opts.zce_csbh && insn->match == MATCH_C_SH)))
+			break;
+		      if (riscv_handle_implicit_zero_offset (imm_expr, s))
+			continue;
+		      if (my_getSmallExpression (imm_expr, imm_reloc, s, p)
+			  || imm_expr->X_op != O_constant
+			  || !VALID_ZCE_LHU_IMM ((valueT) imm_expr->X_add_number))
+			break;
+		      ip->insn_opcode |= ENCODE_ZCE_LHU_IMM (imm_expr->X_add_number);
+		      goto rvc_imm_done;
+		    case 'b':
+		      if (!((riscv_opts.zce_clbhu && insn->match == MATCH_C_LBU)
+			  || (riscv_opts.zce_clbh && insn->match == MATCH_C_LB)
+			  || (riscv_opts.zce_csbh && insn->match == MATCH_C_SB)))
+			break;
+		      if (riscv_handle_implicit_zero_offset (imm_expr, s))
+			continue;
+		      if (my_getSmallExpression (imm_expr, imm_reloc, s, p)
+			  || imm_expr->X_op != O_constant
+			  || !VALID_ZCE_LBU_IMM ((valueT) imm_expr->X_add_number))
+			break;
+		      ip->insn_opcode |= ENCODE_ZCE_LBU_IMM (imm_expr->X_add_number);
+		      goto rvc_imm_done;
 		    default:
 		      as_bad (_("internal: unknown ZCE field specifier "
 			  "field specifier `CZ%c'"), *args);
 		    }
 		  break;
+
 		case 'F':
 		  switch (*++args)
 		    {
@@ -3607,6 +3642,12 @@ s_riscv_option (int x ATTRIBUTE_UNUSED)
     riscv_opts.zce_sext = TRUE;
   else if (strcmp (name, "zce-zext") == 0)
     riscv_opts.zce_zext = TRUE;
+  else if (strcmp (name, "zce-clbhu") == 0)
+    riscv_opts.zce_clbhu = TRUE;
+  else if (strcmp (name, "zce-clbh") == 0)
+    riscv_opts.zce_clbh = TRUE;
+  else if (strcmp (name, "zce-csbh") == 0)
+    riscv_opts.zce_csbh = TRUE;
   else if (strcmp (name, "push") == 0)
     {
       struct riscv_option_stack *s;
