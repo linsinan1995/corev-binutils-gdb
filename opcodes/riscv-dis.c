@@ -277,6 +277,9 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 		case 'h':
 		  print (info->stream, "%d", (int)EXTRACT_ZCE_LHU_IMM (l));
 		  break;
+		case 's':
+		  print (info->stream, "%d", 1 << EXTRACT_OPERAND (C_SCALE, l));
+		  break;
 		default: break;
 		}
 	      break;
@@ -345,6 +348,16 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 	case 'u':
 	  print (info->stream, "0x%x",
 		 (unsigned)EXTRACT_UTYPE_IMM (l) >> RISCV_IMM_BITS);
+	  break;
+
+	case 'n': /* ZCE */
+	  switch (*++d)
+	    {
+	    case 's':
+	      print (info->stream, "%d", 1 << EXTRACT_OPERAND (SCALE, l));
+	      break;
+	    default: break;
+	    }
 	  break;
 
 	case 'm':

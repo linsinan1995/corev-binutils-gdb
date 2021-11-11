@@ -313,6 +313,12 @@ static const char * const riscv_pred_succ[16] =
 #define OP_MASK_CFUNCT2		0x3
 #define OP_SH_CFUNCT2		5
 
+/* ZCE fields */
+#define OP_MASK_SCALE		0x3
+#define OP_SH_SCALE		18
+#define OP_MASK_C_SCALE		0x3
+#define OP_SH_C_SCALE		2
+
 /* ABI names for selected x-registers.  */
 
 #define X_RA 1
