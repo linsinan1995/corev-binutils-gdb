@@ -598,6 +598,10 @@ const struct riscv_opcode riscv_opcodes[] =
 {"fcvt.s.lu", 64, INSN_CLASS_F,   "D,s",       MATCH_FCVT_S_LU|MASK_RM, MASK_FCVT_S_L|MASK_RM, match_opcode, 0 },
 {"fcvt.s.lu", 64, INSN_CLASS_F,   "D,s,m",     MATCH_FCVT_S_LU, MASK_FCVT_S_LU, match_opcode, 0 },
 
+{"c.decbnez",  0,  INSN_CLASS_ZCEB, "Cs,CZs,CZi", MATCH_C_DECBNEZ, MASK_C_DECBNEZ, match_opcode, INSN_CONDBRANCH },
+{"decbnez",    0,  INSN_CLASS_ZCEB, "Cs,CZs,CZi", MATCH_C_DECBNEZ, MASK_C_DECBNEZ, match_opcode, INSN_ALIAS|INSN_CONDBRANCH },
+{"decbnez",    0,  INSN_CLASS_ZCEB, "d,ns,ni",    MATCH_DECBNEZ, MASK_DECBNEZ, match_opcode, INSN_CONDBRANCH },
+
 /* Double-precision floating-point instruction subset.  */
 {"fld",        0, INSN_CLASS_D_AND_C, "D,Cn(Cc)",  MATCH_C_FLDSP, MASK_C_FLDSP, match_opcode, INSN_ALIAS|INSN_DREF|INSN_8_BYTE },
 {"fld",        0, INSN_CLASS_D_AND_C, "CD,Cl(Cs)", MATCH_C_FLD, MASK_C_FLD, match_opcode, INSN_ALIAS|INSN_DREF|INSN_8_BYTE },
