@@ -113,6 +113,10 @@ static const char * const riscv_pred_succ[16] =
   (RV_X(x, 11, 1) | (RV_X(x, 5, 2) << 1) | (RV_X(x, 10, 1) << 3))
 #define EXTRACT_ZCE_LHU_IMM(x) \
   ((RV_X(x, 5, 2) << 1) | (RV_X(x, 10, 2) << 3))
+#define EXTRACT_ZCE_C_DECBNEZ_IMM(x) \
+  ((RV_X(x, 4, 3) << 1) | (RV_X(x, 10, 3) << 4))
+#define EXTRACT_ZCE_DECBNEZ_IMM(x) \
+  ((RV_X(x, 17, 1) << 1) | (RV_X(x, 22, 7) << 2) | (RV_X(x, 20, 2) << 9) | (RV_X(x, 15, 2) << 11) | (-RV_X(x, 16, 1) << 12))
 
 /* CORE-V Specific.  */
 #define EXTRACT_CV_HWLP_UIMM5(x) \
@@ -172,6 +176,10 @@ static const char * const riscv_pred_succ[16] =
   ((RV_X(x, 0, 1) << 11) | (RV_X(x, 1, 2) << 5)) | (RV_X(x, 3, 1) << 10)
 #define ENCODE_ZCE_LHU_IMM(x) \
   ((RV_X(x, 1, 2) << 5) | (RV_X(x, 3, 2) << 10))
+#define ENCODE_ZCE_C_DECBNEZ_IMM(x) \
+  ((RV_X(x, 1, 3) << 4) | (RV_X(x, 4, 3) << 10))
+#define ENCODE_ZCE_DECBNEZ_IMM(x) \
+  ((RV_X(x, 1, 1) << 17) | (RV_X(x, 2, 7) << 22) | (RV_X(x, 9, 2) << 20) | (RV_X(x, 11, 2) << 15))
 
 /* CORE-V Specific.  */
 #define ENCODE_CV_UIMM5(x) \
@@ -209,6 +217,8 @@ static const char * const riscv_pred_succ[16] =
 #define VALID_CJTYPE_IMM(x) (EXTRACT_CJTYPE_IMM(ENCODE_CJTYPE_IMM(x)) == (x))
 #define VALID_ZCE_LBU_IMM(x) (EXTRACT_ZCE_LBU_IMM(ENCODE_ZCE_LBU_IMM(x)) == (x))
 #define VALID_ZCE_LHU_IMM(x) (EXTRACT_ZCE_LHU_IMM(ENCODE_ZCE_LHU_IMM(x)) == (x))
+#define VALID_ZCE_C_DECBNEZ_IMM(x) (EXTRACT_ZCE_C_DECBNEZ_IMM(ENCODE_ZCE_C_DECBNEZ_IMM(x)) == (x))
+#define VALID_ZCE_DECBNEZ_IMM(x) (EXTRACT_ZCE_DECBNEZ_IMM(ENCODE_ZCE_DECBNEZ_IMM(x)) == (x))
 
 #define RISCV_RTYPE(insn, rd, rs1, rs2) \
   ((MATCH_ ## insn) | ((rd) << OP_SH_RD) | ((rs1) << OP_SH_RS1) | ((rs2) << OP_SH_RS2))

@@ -909,6 +909,37 @@ static reloc_howto_type howto_table[] =
 	 0,				/* src_mask */
 	 ENCODE_CV_HWLP_UIMM5 (-1U),	/* dst_mask */
 	 true),				/* pcrel_offset */
+	 FALSE),			/* pcrel_offset */
+
+  /* 12-bit PC-relative branch offset. (DECBNEZ)  */
+  HOWTO (R_RISCV_DECBNEZ_BRANCH,		/* type */
+	 0,				/* rightshift */
+	 2,				/* size */
+	 32,				/* bitsize */
+	 TRUE,				/* pc_relative */
+	 0,				/* bitpos */
+	 complain_overflow_signed,	/* complain_on_overflow */
+	 bfd_elf_generic_reloc,		/* special_function */
+	 "R_RISCV_DECBNEZ_BRANCH",		/* name */
+	 FALSE,				/* partial_inplace */
+	 0,				/* src_mask */
+	 ENCODE_ZCE_DECBNEZ_IMM (-1U),	/* dst_mask */
+	 TRUE),				/* pcrel_offset */
+
+  /* 6-bit PC-relative branch offset. (C.DECBNEZ)  */
+  HOWTO (R_RISCV_C_DECBNEZ_BRANCH,		/* type */
+	 0,				/* rightshift */
+	 -1,				/* size */
+	 16,				/* bitsize */
+	 TRUE,				/* pc_relative */
+	 0,				/* bitpos */
+	 complain_overflow_dont,	/* complain_on_overflow */
+	 bfd_elf_generic_reloc,		/* special_function */
+	 "R_RISCV_C_DECBNEZ_BRANCH",		/* name */
+	 FALSE,				/* partial_inplace */
+	 0,				/* src_mask */
+	 ENCODE_ZCE_C_DECBNEZ_IMM (-1U),	/* dst_mask */
+	 TRUE),				/* pcrel_offset */
 };
 
 /* A mapping from BFD reloc types to RISC-V ELF reloc types.  */
@@ -973,6 +1004,9 @@ static const struct elf_reloc_map riscv_reloc_map[] =
   /* CORE-V Specific.  */
   { BFD_RELOC_RISCV_CVPCREL_UI12, R_RISCV_CVPCREL_UI12 },
   { BFD_RELOC_RISCV_CVPCREL_URS1, R_RISCV_CVPCREL_URS1 },
+  /* ZCE Specific. */
+  { BFD_RELOC_RISCV_DECBNEZ, R_RISCV_DECBNEZ_BRANCH },
+  { BFD_RELOC_RISCV_C_DECBNEZ, R_RISCV_C_DECBNEZ_BRANCH },
 };
 
 reloc_howto_type *

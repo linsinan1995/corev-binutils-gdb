@@ -280,6 +280,10 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 		case 's':
 		  print (info->stream, "%d", 1 << EXTRACT_OPERAND (C_SCALE, l));
 		  break;
+		case 'i':
+		  info->target = pc - EXTRACT_ZCE_C_DECBNEZ_IMM (l);
+		  (*info->print_address_func) ((int)info->target, info);
+		  break;
 		default: break;
 		}
 	      break;
@@ -355,6 +359,10 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 	    {
 	    case 's':
 	      print (info->stream, "%d", 1 << EXTRACT_OPERAND (SCALE, l));
+	      break;
+	    case 'i':
+	      info->target = pc + EXTRACT_ZCE_DECBNEZ_IMM (l);
+	      (*info->print_address_func) (info->target, info);
 	      break;
 	    default: break;
 	    }

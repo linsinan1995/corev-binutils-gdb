@@ -1120,6 +1120,7 @@ validate_riscv_insn (const struct riscv_opcode *opc, int length)
 		case 'h': used_bits |= ENCODE_ZCE_LHU_IMM (-1U); break;
 		case 'b': used_bits |= ENCODE_ZCE_LBU_IMM (-1U); break;
 		case 's': USE_BITS (OP_MASK_C_SCALE, OP_SH_C_SCALE); break;
+		case 'i': used_bits |= ENCODE_ZCE_C_DECBNEZ_IMM (-1U); break;
 		default:
 		  as_bad (_("internal: bad RISC-V opcode "
 			    "(unknown operand type `CZ%c'): %s %s"),
@@ -1217,6 +1218,7 @@ validate_riscv_insn (const struct riscv_opcode *opc, int length)
 	switch (c = *p++)
 	  {
 	    case 's': USE_BITS (OP_MASK_SCALE, OP_SH_SCALE); break;
+	    case 'i': used_bits |= ENCODE_ZCE_DECBNEZ_IMM (-1U); break;
 	    case 'f': break;
 	    case 'd': USE_BITS (OP_MASK_RD, OP_SH_RD); break;
 	    default:
@@ -2458,6 +2460,25 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		      INSERT_OPERAND (C_SCALE, *ip,
 		          riscv_zce_pack_decbnez_scale (imm_expr->X_add_number));
 		      goto rvc_imm_done;
+		    case 'i':
+		      my_getExpression (imm_expr, s);
+
+		      if (imm_expr->X_op == O_constant
+		          && imm_expr->X_add_number <= 0)
+		        break;
+
+		      if (imm_expr->X_op != O_constant)
+		        {
+			  if (!S_IS_DEFINED (imm_expr->X_add_symbol))
+			      break;
+			  /* insn pos - label pos */
+			  if (!VALID_ZCE_C_DECBNEZ_IMM ((frag_more (0) - frag_now->fr_literal)
+			      - (S_GET_VALUE (imm_expr->X_add_symbol))))
+			      break;
+			}
+		      *imm_reloc = BFD_RELOC_RISCV_C_DECBNEZ;
+		      s = expr_end;
+		      continue;
 		    default:
 		      as_bad (_("internal: unknown ZCE field specifier "
 			  "field specifier `CZ%c'"), *args);
@@ -3064,6 +3085,11 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		  INSERT_OPERAND (SCALE, *ip, riscv_zce_pack_decbnez_scale (imm_expr->X_add_number));
 		  s = expr_end;
 		  imm_expr->X_op = O_absent;
+		  continue;
+		case 'i':
+		  *imm_reloc = BFD_RELOC_RISCV_DECBNEZ;
+		  my_getExpression (imm_expr, s);
+		  s = expr_end;
 		  continue;
 		default:
 		  as_bad (_("internal: unknown ZCE 32 bits instruction "
