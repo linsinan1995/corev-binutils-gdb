@@ -1396,7 +1396,9 @@ append_insn (struct riscv_cl_insn *ip, expressionS *address_expr,
 
       gas_assert (address_expr);
       if (reloc_type == BFD_RELOC_12_PCREL
-	  || reloc_type == BFD_RELOC_RISCV_JMP)
+	  || reloc_type == BFD_RELOC_RISCV_JMP
+	  || reloc_type == BFD_RELOC_RISCV_DECBNEZ
+	  || reloc_type == BFD_RELOC_RISCV_C_DECBNEZ)
 	{
 	  int j = reloc_type == BFD_RELOC_RISCV_JMP;
 	  int best_case = riscv_insn_length (ip->insn_opcode);
@@ -3570,6 +3572,26 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
 	}
       break;
 
+    case BFD_RELOC_RISCV_DECBNEZ:
+      if (fixP->fx_addsy)
+	{
+	  /* Fill in a tentative value to improve objdump readability.  */
+	  bfd_vma target = S_GET_VALUE (fixP->fx_addsy) + *valP;
+	  bfd_vma delta = target - md_pcrel_from (fixP);
+	  bfd_putl32 (bfd_getl32 (buf) | ENCODE_ZCE_DECBNEZ_IMM (delta), buf);
+	}
+      break;
+
+    case BFD_RELOC_RISCV_C_DECBNEZ:
+      if (fixP->fx_addsy)
+	{
+	  /* Fill in a tentative value to improve objdump readability.  */
+	  bfd_vma target = S_GET_VALUE (fixP->fx_addsy) + *valP;
+	  bfd_vma delta = target - md_pcrel_from (fixP);
+	  bfd_putl16 (bfd_getl16 (buf) | ENCODE_ZCE_C_DECBNEZ_IMM (-delta), buf);
+	}
+      break;
+
     case BFD_RELOC_RISCV_RVC_BRANCH:
       if (fixP->fx_addsy)
 	{
@@ -3975,6 +3997,13 @@ md_convert_frag_branch (fragS *fragp)
 	      insn = MATCH_BEQ | (rs1 << OP_SH_RS1);
 	    else if ((insn & MASK_C_BNEZ) == MATCH_C_BNEZ)
 	      insn = MATCH_BNE | (rs1 << OP_SH_RS1);
+	    else if ((insn & MASK_C_DECBNEZ) == MATCH_C_DECBNEZ)
+	      {
+	        insn = MATCH_DECBNEZ
+		    | (rs1 << OP_SH_RD)
+		    | EXTRACT_OPERAND (C_SCALE, insn) << OP_SH_SCALE;
+	        exp.X_add_number *= -1;
+	      }
 	    else
 	      abort ();
 	    bfd_putl32 (insn, buf);
@@ -3983,16 +4012,28 @@ md_convert_frag_branch (fragS *fragp)
 	  case 6:
 	    /* Invert the branch condition.  Branch over the jump.  */
 	    insn = bfd_getl16 (buf);
-	    insn ^= MATCH_C_BEQZ ^ MATCH_C_BNEZ;
-	    insn |= ENCODE_CBTYPE_IMM (6);
+	    if ((insn & MASK_C_DECBNEZ) == MATCH_C_DECBNEZ)
+	      {
+		insn |= ENCODE_ZCE_DECBNEZ_IMM (6);
+	      }
+	    else
+	      {
+	        insn ^= MATCH_C_BEQZ ^ MATCH_C_BNEZ;
+	        insn |= ENCODE_CBTYPE_IMM (6);
+	      }
 	    bfd_putl16 (insn, buf);
 	    buf += 2;
 	    goto jump;
 
 	  case 2:
+	    insn = bfd_getl16 (buf);
 	    /* Just keep the RVC branch.  */
-	    reloc = RELAX_BRANCH_UNCOND (fragp->fr_subtype)
-		    ? BFD_RELOC_RISCV_RVC_JUMP : BFD_RELOC_RISCV_RVC_BRANCH;
+	    if ((insn & MASK_C_DECBNEZ) == MATCH_C_DECBNEZ)
+	      reloc = BFD_RELOC_RISCV_C_DECBNEZ;
+	    else
+	      reloc = RELAX_BRANCH_UNCOND (fragp->fr_subtype)
+		? BFD_RELOC_RISCV_RVC_JUMP : BFD_RELOC_RISCV_RVC_BRANCH;
+
 	    fixp = fix_new_exp (fragp, buf - (bfd_byte *)fragp->fr_literal,
 				2, &exp, false, reloc);
 	    buf += 2;
@@ -4010,8 +4051,14 @@ md_convert_frag_branch (fragS *fragp)
 
       /* Invert the branch condition.  Branch over the jump.  */
       insn = bfd_getl32 (buf);
-      insn ^= MATCH_BEQ ^ MATCH_BNE;
-      insn |= ENCODE_BTYPE_IMM (8);
+      if ((insn & MATCH_DECBNEZ) != MATCH_DECBNEZ)
+        {
+          insn ^= MATCH_BEQ ^ MATCH_BNE;
+          insn |= ENCODE_BTYPE_IMM (8);
+        }
+      else
+        insn |= ENCODE_ZCE_DECBNEZ_IMM (8);
+
       bfd_putl32 (insn, buf);
       buf += 4;
 
@@ -4024,8 +4071,13 @@ md_convert_frag_branch (fragS *fragp)
       break;
 
     case 4:
-      reloc = RELAX_BRANCH_UNCOND (fragp->fr_subtype)
-	      ? BFD_RELOC_RISCV_JMP : BFD_RELOC_12_PCREL;
+      insn = bfd_getl32 (buf);
+      if ((insn & MATCH_DECBNEZ) == MATCH_DECBNEZ)
+        reloc = BFD_RELOC_RISCV_DECBNEZ;
+      else
+        reloc = RELAX_BRANCH_UNCOND (fragp->fr_subtype)
+	  ? BFD_RELOC_RISCV_JMP : BFD_RELOC_12_PCREL;
+
       fixp = fix_new_exp (fragp, buf - (bfd_byte *)fragp->fr_literal,
 			  4, &exp, false, reloc);
       buf += 4;
