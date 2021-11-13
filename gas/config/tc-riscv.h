@@ -128,4 +128,11 @@ extern void riscv_elf_final_processing (void);
 extern void riscv_md_end (void);
 extern int riscv_convert_symbolic_attribute (const char *);
 
+#define md_cleanup riscv_cleanup
+#define TC_START_LABEL(STR, NUL_CHAR, NEXT_CHAR)	\
+  (NEXT_CHAR == ':' && riscv_cleanup ())
+
+extern bfd_boolean riscv_cleanup (void);
+
+
 #endif /* TC_RISCV */

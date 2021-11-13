@@ -63,6 +63,29 @@ struct riscv_cl_insn
   fixS *fixp;
 };
 
+typedef bfd_boolean (*riscv_zce_func) (struct riscv_cl_insn*,
+    expressionS*, bfd_reloc_code_real_type*);
+
+typedef bfd_boolean (*riscv_zce_avail) (void);
+
+struct riscv_combiner_macther
+{
+  riscv_zce_func check_1;
+  riscv_zce_func check_2;
+  riscv_zce_func output;
+  riscv_zce_avail avail;
+};
+
+struct riscv_insn_combiner
+{
+  struct riscv_combiner_macther *macther;
+
+  int idx;
+  expressionS imm_expr;
+  struct riscv_cl_insn insn;
+  bfd_reloc_code_real_type imm_reloc;
+};
+
 /* All RISC-V CSR belong to one of these classes.  */
 enum riscv_csr_class
 {
@@ -596,6 +619,8 @@ static bool explicit_priv_attr = false;
 
 static char *expr_end;
 
+static struct riscv_insn_combiner *combiner;
+
 /* The default target format to use.  */
 
 const char *
@@ -1052,6 +1077,148 @@ riscv_zce_pack_decbnez_scale (offsetT imm)
     }
   return imm;
 }
+
+static void cache_an_insn (struct riscv_cl_insn *insn, expressionS *imm_expr,
+	bfd_reloc_code_real_type reloc_type)
+{
+  memcpy((void*)&(combiner->imm_expr), (void*)imm_expr, sizeof(expressionS));
+  memcpy((void*)&(combiner->insn), (void*)insn, sizeof(struct riscv_cl_insn));
+  combiner->imm_reloc = reloc_type;
+}
+
+static bfd_boolean
+riscv_zce_decbnez_1 (struct riscv_cl_insn *insn, expressionS *imm_expr,
+	bfd_reloc_code_real_type *reloc_type)
+{
+  int rd, rs1, scale;
+
+  if (insn->insn_mo->match != MATCH_ADDI
+      && insn->insn_mo->match != MATCH_C_ADDI)
+    return FALSE;
+
+  rd = EXTRACT_OPERAND (RD, insn->insn_opcode);
+  rs1 =  EXTRACT_OPERAND (RS1, insn->insn_opcode);
+  scale = riscv_zce_pack_decbnez_scale(-1 * imm_expr->X_add_number);
+
+  if (insn->insn_mo->match == MATCH_ADDI
+      && rd == rs1
+      && scale != -1)
+    {
+      cache_an_insn (insn, imm_expr, *reloc_type);
+      return TRUE;
+    }
+  else if (insn->insn_mo->match == MATCH_C_ADDI && scale != -1)
+    {
+      cache_an_insn (insn, imm_expr, *reloc_type);
+      return TRUE;
+    }
+  return FALSE;
+}
+
+static bfd_boolean
+riscv_zce_decbnez_2 (struct riscv_cl_insn *insn,
+	expressionS *imm_expr ATTRIBUTE_UNUSED,
+	bfd_reloc_code_real_type *reloc_type ATTRIBUTE_UNUSED)
+{
+  int rd_addi;
+  if (insn->insn_mo->match != MATCH_BNE
+      && insn->insn_mo->match != MATCH_C_BNEZ)
+    return FALSE;
+
+  rd_addi = EXTRACT_OPERAND (RD, combiner->insn.insn_opcode);
+
+  if (insn->insn_mo->match == MATCH_BNE
+      && EXTRACT_OPERAND (RS2, insn->insn_opcode) == 0
+      && (int)EXTRACT_OPERAND (RS1, insn->insn_opcode) == rd_addi)
+    return TRUE;
+  else if (insn->insn_mo->match == MATCH_C_BNEZ
+      && (int)EXTRACT_OPERAND (CRS1S, insn->insn_opcode) == (rd_addi - 8))
+    return TRUE;
+
+  return FALSE;
+}
+
+static bfd_boolean
+riscv_zce_decbnez_out (struct riscv_cl_insn *insn, expressionS *imm_expr,
+	bfd_reloc_code_real_type *imm_reloc)
+{
+  offsetT label_loc, insn_loc, offset;
+  int rd = EXTRACT_OPERAND (RD, combiner->insn.insn_opcode);
+  int scale = riscv_zce_pack_decbnez_scale (
+                -1 * combiner->imm_expr.X_add_number);
+
+  /* decrement should be -1, -2, -4, or -8 */
+  gas_assert (scale != -1);
+
+  /* c.decbnez only supports backward jump, so when offset is
+     an immediate, then it should be a negative */
+  if (riscv_opts.zce_cdecbnez
+      && imm_expr->X_op == O_constant
+      && imm_expr->X_add_number < 0
+      && VALID_ZCE_C_DECBNEZ_IMM (-1*imm_expr->X_add_number))
+    {
+	insn->insn_opcode = MATCH_C_DECBNEZ;
+	INSERT_OPERAND (C_SCALE, *insn, scale);
+	INSERT_OPERAND (CRS1S, *insn, rd-8);
+	*imm_reloc = BFD_RELOC_RISCV_C_DECBNEZ;
+	return TRUE;
+    }
+
+  /* check if decbnez can be compressed to c.decbnez
+     when branch to a label.
+    1. addressing expr is a label
+    2. the label is located above the inst (if it is defined)
+    3. the length of offset to label is valid rd field
+    4. regno of rd ranges from 8 to 15
+  */
+  if (riscv_opts.zce_cdecbnez
+      && imm_expr->X_op != O_constant
+      && S_IS_DEFINED (imm_expr->X_add_symbol))
+    {
+      label_loc = S_GET_VALUE (imm_expr->X_add_symbol);
+      insn_loc = frag_more (0) - frag_now->fr_literal;
+      offset = insn_loc - label_loc;
+
+      /* check if the offset length is valid */
+      if (VALID_ZCE_C_DECBNEZ_IMM (offset)
+	  && offset != 0
+	  && (rd >= 8 && rd <= 15))
+	{
+	  /* new encoding for c.decbnez */
+	  insn->insn_opcode = MATCH_C_DECBNEZ;
+	  INSERT_OPERAND (C_SCALE, *insn, scale);
+	  INSERT_OPERAND (CRS1S, *insn, rd-8);
+	  *imm_reloc = BFD_RELOC_RISCV_C_DECBNEZ;
+	  return TRUE;
+	}
+    }
+
+  insn->insn_opcode = MATCH_DECBNEZ;
+  INSERT_OPERAND (RD, *insn, rd);
+  INSERT_OPERAND (SCALE, *insn, scale);
+  *imm_reloc = BFD_RELOC_RISCV_DECBNEZ;
+  return TRUE;
+}
+
+static bfd_boolean
+combiner_avail_zceb (void)
+{
+  return riscv_opts.zce_decbnez;
+}
+
+static struct riscv_combiner_macther zce_matchers [] = {
+  { riscv_zce_decbnez_1, riscv_zce_decbnez_2, riscv_zce_decbnez_out, combiner_avail_zceb },
+  { NULL, NULL, NULL, NULL },
+};
+
+/* initialize ZCE instruction pair combiner */
+static void
+init_insn_combiner (void)
+  {
+    combiner = (struct riscv_insn_combiner *) xmalloc (sizeof *combiner);
+    combiner->idx = 0;
+    combiner->macther = zce_matchers;
+  }
 
 /* For consistency checking, verify that all bits are specified either
    by the match/mask part of the instruction definition, or by the
@@ -3126,6 +3293,56 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
   return error;
 }
 
+static
+void riscv_append_insn (struct riscv_cl_insn *insn, expressionS *imm_expr,
+  bfd_reloc_code_real_type imm_reloc)
+{
+  if (insn->insn_mo->pinfo == INSN_MACRO)
+    {
+      macro (insn, imm_expr, &imm_reloc);
+      return;
+    }
+
+  if (riscv_opts.zce_decbnez)
+    {
+      struct riscv_combiner_macther *matchers = combiner->macther;
+      unsigned idx;
+
+      /* if one insn is cached, we now check the second insn */
+      if (combiner->idx)
+	{
+	  idx = combiner->idx - 1;
+	  /* if successfully match a insn pair, we output the merged result */
+	  if (matchers[idx].check_2 (insn, imm_expr, &imm_reloc))
+	    {
+	      matchers[idx].output (insn, imm_expr, &imm_reloc);
+	      combiner->idx = 0;
+	      append_insn (insn, imm_expr, imm_reloc);
+	      return;
+	    }
+	  /* fail to match the second insn, and release cached insn and reset flag */
+	  append_insn (&(combiner->insn), &(combiner->imm_expr), combiner->imm_reloc);
+	  combiner->idx = 0;
+	}
+
+      gas_assert (combiner->idx == 0);
+
+      for (idx = 0; matchers[idx].output != NULL; idx++)
+	{
+	  if (!matchers[idx].avail())
+	    continue;
+
+	  if (matchers[idx].check_1 (insn, imm_expr, &imm_reloc))
+	    {
+	      combiner->idx = idx + 1;
+	      return;
+	    }
+	}
+    }
+
+  append_insn (insn, imm_expr, imm_reloc);
+}
+
 void
 md_assemble (char *str)
 {
@@ -3152,10 +3369,7 @@ md_assemble (char *str)
       return;
     }
 
-  if (insn.insn_mo->pinfo == INSN_MACRO)
-    macro (&insn, &imm_expr, &imm_reloc);
-  else
-    append_insn (&insn, &imm_expr, imm_reloc);
+  riscv_append_insn (&insn, &imm_expr, imm_reloc);
 }
 
 const char *
@@ -3750,7 +3964,10 @@ s_riscv_option (int x ATTRIBUTE_UNUSED)
     riscv_opts.zce_csbh = TRUE;
   else if (strcmp (name, "zce-decbnez") == 0
       && riscv_subset_supports ("zceb"))
-    riscv_opts.zce_decbnez = TRUE;
+    {
+      riscv_opts.zce_decbnez = TRUE;
+      init_insn_combiner ();
+    }
   else if (strcmp (name, "zce-cdecbnez") == 0
       && riscv_subset_supports ("zceb"))
     riscv_opts.zce_cdecbnez = TRUE;
@@ -3960,6 +4177,22 @@ tc_gen_reloc (asection *section ATTRIBUTE_UNUSED, fixS *fixp)
     }
 
   return reloc;
+}
+
+/* Implement TC_START_LABEL and md_cleanup. Release cache instruction
+   when assemble finished parsing input file or defining a label  */
+
+bfd_boolean
+riscv_cleanup (void)
+{
+  if (riscv_opts.zce_decbnez
+       && combiner->idx)
+    {
+      append_insn (&(combiner->insn), &(combiner->imm_expr), combiner->imm_reloc);
+      combiner->idx = 0;
+    }
+
+  return TRUE;
 }
 
 int
@@ -4296,6 +4529,8 @@ riscv_set_public_attributes (void)
 void
 riscv_md_end (void)
 {
+  if (riscv_opts.zce_decbnez)
+    free (combiner);
   riscv_set_public_attributes ();
 }
 
