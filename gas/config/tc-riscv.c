@@ -282,6 +282,8 @@ struct riscv_set_options
   int zce_clbhu; /* Enable c.lbu, c.lhu */
   int zce_clbh;  /* Enable c.lb, c.lh */
   int zce_csbh;  /* Enable c.sb, c.sh */
+  int zce_decbnez;  /* Enable decbnez */
+  int zce_cdecbnez; /* Enable c.decbnez */
 };
 
 static struct riscv_set_options riscv_opts =
@@ -297,7 +299,9 @@ static struct riscv_set_options riscv_opts =
   0, /* zce_cmul */
   0, /* zce_clbhu */
   0, /* zce_clbh */
-  0  /* zce_csbh */
+  0, /* zce_csbh */
+  0, /* zce_decbnez */
+  0  /* zce_cdecbnez */
 };
 
 static void
@@ -2450,6 +2454,8 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		      ip->insn_opcode |= ENCODE_ZCE_LBU_IMM (imm_expr->X_add_number);
 		      goto rvc_imm_done;
 		    case 's':
+		      if (!riscv_opts.zce_cdecbnez)
+			break;
 		      if (my_getSmallExpression (imm_expr, imm_reloc, s, p)
 			|| imm_expr->X_op != O_constant)
 			break;
@@ -3075,6 +3081,8 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		    break;
 		  INSERT_OPERAND (RD, *ip, regno);
 		case 's':
+		  if (!riscv_opts.zce_decbnez)
+		    break;
 		  my_getExpression (imm_expr, s);
 		  if (imm_expr->X_op != O_constant)
 		    break;
@@ -3740,6 +3748,12 @@ s_riscv_option (int x ATTRIBUTE_UNUSED)
     riscv_opts.zce_clbh = TRUE;
   else if (strcmp (name, "zce-csbh") == 0)
     riscv_opts.zce_csbh = TRUE;
+  else if (strcmp (name, "zce-decbnez") == 0
+      && riscv_subset_supports ("zceb"))
+    riscv_opts.zce_decbnez = TRUE;
+  else if (strcmp (name, "zce-cdecbnez") == 0
+      && riscv_subset_supports ("zceb"))
+    riscv_opts.zce_cdecbnez = TRUE;
   else if (strcmp (name, "push") == 0)
     {
       struct riscv_option_stack *s;
