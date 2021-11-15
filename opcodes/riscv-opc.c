@@ -602,6 +602,11 @@ const struct riscv_opcode riscv_opcodes[] =
 {"decbnez",    0,  INSN_CLASS_ZCEB, "Cs,CZs,CZi", MATCH_C_DECBNEZ, MASK_C_DECBNEZ, match_opcode, INSN_ALIAS|INSN_CONDBRANCH },
 {"decbnez",    0,  INSN_CLASS_ZCEB, "d,ns,ni",    MATCH_DECBNEZ, MASK_DECBNEZ, match_opcode, INSN_CONDBRANCH },
 
+{"lwgp",       0,  INSN_CLASS_ZCEB, "d,nl",       MATCH_FLD, MASK_LWGP, match_opcode, INSN_DREF|INSN_4_BYTE },
+{"swgp",       0,  INSN_CLASS_ZCEB, "t,nw",       MATCH_FSD, MASK_SWGP, match_opcode, INSN_DREF|INSN_4_BYTE },
+{"ldgp",       64, INSN_CLASS_ZCEB, "d,nL",       MATCH_LDGP, MASK_LDGP, match_opcode, INSN_DREF|INSN_8_BYTE },
+{"sdgp",       64, INSN_CLASS_ZCEB, "t,nS",       MATCH_SDGP, MASK_SDGP, match_opcode, INSN_DREF|INSN_8_BYTE },
+
 /* Double-precision floating-point instruction subset.  */
 {"fld",        0, INSN_CLASS_D_AND_C, "D,Cn(Cc)",  MATCH_C_FLDSP, MASK_C_FLDSP, match_opcode, INSN_ALIAS|INSN_DREF|INSN_8_BYTE },
 {"fld",        0, INSN_CLASS_D_AND_C, "CD,Cl(Cs)", MATCH_C_FLD, MASK_C_FLD, match_opcode, INSN_ALIAS|INSN_DREF|INSN_8_BYTE },

@@ -1392,6 +1392,10 @@ validate_riscv_insn (const struct riscv_opcode *opc, int length)
 	    case 'i': used_bits |= ENCODE_ZCE_DECBNEZ_IMM (-1U); break;
 	    case 'f': break;
 	    case 'd': USE_BITS (OP_MASK_RD, OP_SH_RD); break;
+	    case 'l': used_bits |= ENCODE_ZCE_LWGP_IMM (-1U); break;
+	    case 'w': used_bits |= ENCODE_ZCE_SWGP_IMM (-1U); break;
+	    case 'L': used_bits |= ENCODE_ZCE_LDGP_IMM (-1U); break;
+	    case 'S': used_bits |= ENCODE_ZCE_SDGP_IMM (-1U); break;
 	    default:
 	      as_bad (_("internal: bad RISC-V opcode "
 			"(unknown operand type `n%c'): %s %s"),
@@ -3267,6 +3271,42 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		  *imm_reloc = BFD_RELOC_RISCV_DECBNEZ;
 		  my_getExpression (imm_expr, s);
 		  s = expr_end;
+		  continue;
+		case 'l':
+		  my_getExpression (imm_expr, s);
+		  if (imm_expr->X_op != O_constant
+		      || !VALID_ZCE_LWGP_IMM (imm_expr->X_add_number))
+		    break;
+		  ip->insn_opcode |= ENCODE_ZCE_LWGP_IMM (imm_expr->X_add_number);
+		  s = expr_end;
+		  imm_expr->X_op = O_absent;
+		  continue;
+		case 'w':
+		  my_getExpression (imm_expr, s);
+		  if (imm_expr->X_op != O_constant
+		      || !VALID_ZCE_SWGP_IMM (imm_expr->X_add_number))
+		    break;
+		  ip->insn_opcode |= ENCODE_ZCE_SWGP_IMM (imm_expr->X_add_number);
+		  s = expr_end;
+		  imm_expr->X_op = O_absent;
+		  continue;
+		case 'L':
+		  my_getExpression (imm_expr, s);
+		  if (imm_expr->X_op != O_constant
+		      || !VALID_ZCE_LDGP_IMM (imm_expr->X_add_number))
+		    break;
+		  ip->insn_opcode |= ENCODE_ZCE_LDGP_IMM (imm_expr->X_add_number);
+		  s = expr_end;
+		  imm_expr->X_op = O_absent;
+		  continue;
+		case 'S':
+		  my_getExpression (imm_expr, s);
+		  if (imm_expr->X_op != O_constant
+		      || !VALID_ZCE_SDGP_IMM (imm_expr->X_add_number))
+		    break;
+		  ip->insn_opcode |= ENCODE_ZCE_SDGP_IMM (imm_expr->X_add_number);
+		  s = expr_end;
+		  imm_expr->X_op = O_absent;
 		  continue;
 		default:
 		  as_bad (_("internal: unknown ZCE 32 bits instruction "

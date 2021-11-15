@@ -364,6 +364,18 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 	      info->target = pc + EXTRACT_ZCE_DECBNEZ_IMM (l);
 	      (*info->print_address_func) (info->target, info);
 	      break;
+	    case 'l':
+	      print (info->stream, "%d", (int)EXTRACT_ZCE_LWGP_IMM (l));
+	      break;
+	    case 'w':
+	      print (info->stream, "%d", (int)EXTRACT_ZCE_SWGP_IMM (l));
+	      break;
+	    case 'L':
+	      print (info->stream, "%d", (int)EXTRACT_ZCE_LDGP_IMM (l));
+	      break;
+	    case 'S':
+	      print (info->stream, "%d", (int)EXTRACT_ZCE_SDGP_IMM (l));
+	      break;
 	    default: break;
 	    }
 	  break;
