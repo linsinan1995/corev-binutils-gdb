@@ -940,6 +940,66 @@ static reloc_howto_type howto_table[] =
 	 0,				/* src_mask */
 	 ENCODE_ZCE_C_DECBNEZ_IMM (-1U),	/* dst_mask */
 	 TRUE),				/* pcrel_offset */
+
+/* 16 bits imm GP-relative store.  */
+  HOWTO (R_RISCV_GPREL_ZCE_SWGP,	/* type */
+	0,				/* rightshift */
+	2,				/* size */
+	32,				/* bitsize */
+	FALSE,				/* pc_relative */
+	0,				/* bitpos */
+	complain_overflow_signed,	/* complain_on_overflow */
+	bfd_elf_generic_reloc,		/* special_function */
+	"R_RISCV_GPREL_ZCE_SWGP",		/* name */
+	FALSE,				/* partial_inplace */
+	0,				/* src_mask */
+	ENCODE_ZCE_SWGP_IMM (-1U),	/* dst_mask */
+	FALSE),			/* pcrel_offset */
+
+  /* 17 bits imm GP-relative store.  */
+  HOWTO (R_RISCV_GPREL_ZCE_SDGP,	/* type */
+	0,				/* rightshift */
+	2,				/* size */
+	32,				/* bitsize */
+	FALSE,				/* pc_relative */
+	0,				/* bitpos */
+	complain_overflow_signed,	/* complain_on_overflow */
+	bfd_elf_generic_reloc,		/* special_function */
+	"R_RISCV_GPREL_ZCE_SDGP",		/* name */
+	FALSE,				/* partial_inplace */
+	0,				/* src_mask */
+	ENCODE_ZCE_SDGP_IMM (-1U),	/* dst_mask */
+	FALSE),			/* pcrel_offset */
+
+  /* 16 bits imm GP-relative load.  */
+  HOWTO (R_RISCV_GPREL_ZCE_LWGP,	/* type */
+	0,				/* rightshift */
+	2,				/* size */
+	32,				/* bitsize */
+	FALSE,				/* pc_relative */
+	0,				/* bitpos */
+	complain_overflow_signed,	/* complain_on_overflow */
+	bfd_elf_generic_reloc,		/* special_function */
+	"R_RISCV_GPREL_ZCE_LWGP",		/* name */
+	FALSE,				/* partial_inplace */
+	0,				/* src_mask */
+	ENCODE_ZCE_LWGP_IMM (-1U),	/* dst_mask */
+	FALSE),			/* pcrel_offset */
+
+  /* 17 bits imm GP-relative load.  */
+  HOWTO (R_RISCV_GPREL_ZCE_LDGP,	/* type */
+	0,				/* rightshift */
+	2,				/* size */
+	32,				/* bitsize */
+	FALSE,				/* pc_relative */
+	0,				/* bitpos */
+	complain_overflow_signed,	/* complain_on_overflow */
+	bfd_elf_generic_reloc,		/* special_function */
+	"R_RISCV_GPREL_ZCE_LDGP",		/* name */
+	FALSE,				/* partial_inplace */
+	0,				/* src_mask */
+	ENCODE_ZCE_LDGP_IMM (-1U),	/* dst_mask */
+	FALSE),			/* pcrel_offset */
 };
 
 /* A mapping from BFD reloc types to RISC-V ELF reloc types.  */

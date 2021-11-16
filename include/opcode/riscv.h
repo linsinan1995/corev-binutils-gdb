@@ -277,6 +277,13 @@ static const char * const riscv_pred_succ[16] =
 #define RISCV_BRANCH_ALIGN (1 << RISCV_BRANCH_ALIGN_BITS)
 #define RISCV_BRANCH_REACH (RISCV_IMM_REACH * RISCV_BRANCH_ALIGN)
 
+#define EXTRACT_IMM17(x) (RV_X(x, 0, 16) | (-RV_X(x, 16, 1) << 16))
+#define ENCODE_IMM17(x) (RV_X(x, 0, 17))
+#define VALID_IMM17(x) (EXTRACT_IMM17(ENCODE_IMM17(x)) == (x))
+
+#define EXTRACT_IMM16(x) (RV_X(x, 0, 15) | (-RV_X(x, 15, 1) << 15))
+#define ENCODE_IMM16(x) (RV_X(x, 0, 16))
+#define VALID_IMM16(x) (EXTRACT_IMM16(ENCODE_IMM16(x)) == (x))
 /* RV fields.  */
 
 #define OP_MASK_OP		0x7f
