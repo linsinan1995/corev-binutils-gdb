@@ -3804,6 +3804,10 @@ riscv_merge_attributes (bfd *ibfd, struct bfd_link_info *info)
 	out_attr[i].i |= in_attr[i].i;
 	break;
 
+      case Tag_RISCV_zce_lsgp:
+	out_attr[Tag_RISCV_zce_lsgp].i |= in_attr[Tag_RISCV_zce_lsgp].i;
+	break;
+
       case Tag_RISCV_stack_align:
 	if (out_attr[i].i == 0)
 	  out_attr[i].i = in_attr[i].i;

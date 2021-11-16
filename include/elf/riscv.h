@@ -142,7 +142,8 @@ enum
   Tag_RISCV_unaligned_access = 6,
   Tag_RISCV_priv_spec = 8,
   Tag_RISCV_priv_spec_minor = 10,
-  Tag_RISCV_priv_spec_revision = 12
+  Tag_RISCV_priv_spec_revision = 12,
+  Tag_RISCV_zce_lsgp = 16
 };
 
 #endif /* _ELF_RISCV_H */

@@ -17066,6 +17066,7 @@ static struct riscv_attr_tag_t riscv_attr_tag[] =
   T(priv_spec_revision),
   T(unaligned_access),
   T(stack_align),
+  T(zce_lsgp),
 #undef T
 };
 
@@ -17121,6 +17122,10 @@ display_riscv_attribute (unsigned char *p,
       break;
     case Tag_RISCV_arch:
       p = display_tag_value (-1, p, end);
+      break;
+    case Tag_RISCV_zce_lsgp:
+      READ_ULEB (val, p, end);
+      printf (_("%s\n"), val ? "true" : "false");
       break;
     default:
       return display_tag_value (tag, p, end);

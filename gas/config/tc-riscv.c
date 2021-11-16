@@ -307,6 +307,7 @@ struct riscv_set_options
   int zce_csbh;  /* Enable c.sb, c.sh */
   int zce_decbnez;  /* Enable decbnez */
   int zce_cdecbnez; /* Enable c.decbnez */
+  int zce_lsgp;     /* Enable lwgp, swgp, ldgp (RV64), sdgp (RV64) */
 };
 
 static struct riscv_set_options riscv_opts =
@@ -324,7 +325,8 @@ static struct riscv_set_options riscv_opts =
   0, /* zce_clbh */
   0, /* zce_csbh */
   0, /* zce_decbnez */
-  0  /* zce_cdecbnez */
+  0, /* zce_cdecbnez */
+  0  /* zce_lsgp */
 };
 
 static void
@@ -3273,6 +3275,8 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		  s = expr_end;
 		  continue;
 		case 'l':
+		  if (!riscv_opts.zce_lsgp)
+		    break;
 		  my_getExpression (imm_expr, s);
 		  if (imm_expr->X_op != O_constant
 		      || !VALID_ZCE_LWGP_IMM (imm_expr->X_add_number))
@@ -3282,6 +3286,8 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		  imm_expr->X_op = O_absent;
 		  continue;
 		case 'w':
+		  if (!riscv_opts.zce_lsgp)
+		    break;
 		  my_getExpression (imm_expr, s);
 		  if (imm_expr->X_op != O_constant
 		      || !VALID_ZCE_SWGP_IMM (imm_expr->X_add_number))
@@ -3291,6 +3297,8 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		  imm_expr->X_op = O_absent;
 		  continue;
 		case 'L':
+		  if (!riscv_opts.zce_lsgp)
+		    break;
 		  my_getExpression (imm_expr, s);
 		  if (imm_expr->X_op != O_constant
 		      || !VALID_ZCE_LDGP_IMM (imm_expr->X_add_number))
@@ -3300,6 +3308,8 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		  imm_expr->X_op = O_absent;
 		  continue;
 		case 'S':
+		  if (!riscv_opts.zce_lsgp)
+		    break;
 		  my_getExpression (imm_expr, s);
 		  if (imm_expr->X_op != O_constant
 		      || !VALID_ZCE_SDGP_IMM (imm_expr->X_add_number))
@@ -3397,6 +3407,7 @@ md_assemble (char *str)
       start_assemble = true;
 
       riscv_set_abi_by_arch ();
+      bfd_elf_add_proc_attr_int (stdoutput, Tag_RISCV_zce_lsgp, riscv_opts.zce_lsgp);
       if (!riscv_set_default_priv_spec (NULL))
        return;
     }
@@ -4011,6 +4022,8 @@ s_riscv_option (int x ATTRIBUTE_UNUSED)
   else if (strcmp (name, "zce-cdecbnez") == 0
       && riscv_subset_supports ("zceb"))
     riscv_opts.zce_cdecbnez = TRUE;
+  else if (strcmp (name, "zce-lsgp") == 0)
+    riscv_opts.zce_lsgp = TRUE;
   else if (strcmp (name, "push") == 0)
     {
       struct riscv_option_stack *s;
