@@ -666,6 +666,10 @@
 #define MASK_CM_SB 0xf003
 #define MATCH_CM_SH 0xb000
 #define MASK_CM_SH 0xf003
+/* ZCMT instructions.  */
+#define MATCH_TABLE_JUMP 0xa002
+#define MASK_CM_JT 0xff03
+#define MASK_CM_JALT 0xfc03
 /* Privileged CSR addresses.  */
 #define CSR_USTATUS 0x0
 #define CSR_UIE 0x4
