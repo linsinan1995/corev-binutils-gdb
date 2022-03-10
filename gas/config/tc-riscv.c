@@ -71,7 +71,8 @@ enum riscv_csr_class
   CSR_CLASS_I,
   CSR_CLASS_I_32, /* rv32 only */
   CSR_CLASS_F, /* f-ext only */
-  CSR_CLASS_DEBUG /* debug CSR */
+  CSR_CLASS_DEBUG, /* debug CSR */
+  CSR_CLASS_ZCMP  /* zcmp only */
 };
 
 /* This structure holds all restricted conditions for a CSR.  */
@@ -949,6 +950,9 @@ riscv_csr_address (const char *csr_name,
       break;
     case CSR_CLASS_DEBUG:
       need_check_version = false;
+      break;
+    case CSR_CLASS_ZCMP:
+      result = riscv_subset_supports ("zcmp");
       break;
     default:
       as_bad (_("internal: bad RISC-V CSR class (0x%x)"), csr_class);
