@@ -1032,6 +1032,140 @@ arg_lookup (char **s, const char *const *array, size_t size, unsigned *regnop)
   return false;
 }
 
+/* Map ra and s-register to [4,15]. so that we can check if the
+    register in register list is valid.
+  e.g.
+  ra  - 4
+  s0  - 5
+    ....
+  s10 - 0 (invalid)
+  s11 - 15
+*/
+
+static int
+regno_to_rlist (unsigned regno)
+{
+  if (regno == X_RA)
+    return 4;
+  else if (regno == X_S0 || regno == X_S1)
+    return 5 + regno - X_S0;
+  else if (regno >= X_S2 && regno < X_S10)
+    return 7 + regno - X_S2;
+  else if (regno == X_S11)
+    return 15;
+
+  return 0; /* invalid symbol */
+}
+
+/* Parse register list, and the parsed rlist value is stored in rlist
+  argument.
+
+  If ABI register names are used (e.g. ra and s0), the register
+  list could be "{ra}", "{ra, s0}", "{ra, s0-sN}", where 0 < N < 10 or
+  N == 11.
+
+  If numeric register names are used (e.g. x1 and x8), the register list
+  could be "{x1}", "{x1,x8}", "{x1,x8-x9}", "{x1,x8-x9, x18}" and
+  "{x1,x8-x9,x18-xN}", where 19 < N < 25 or N == 27.
+
+  It will fail if numeric register names and ABI register names are used
+  at the same time.
+  */
+
+static bool
+reglist_lookup (char **s, unsigned *rlist)
+{
+  unsigned regno;
+  /* check if the register format is xreg.  */
+  bool use_xreg = **s == 'x';
+
+  /* the first register in register list should be ra.  */
+  if (!reg_lookup (s, RCLASS_GPR, &regno)
+      || regno != X_RA
+      || !(*rlist = regno_to_rlist (regno)))
+    return FALSE;
+
+  /* skip "white space, white space" pattern.  */
+  while (ISSPACE (**s))
+    ++ *s;
+  if (**s == '}')
+    return TRUE;
+  else if (**s != ',')
+    return FALSE;
+  while (ISSPACE (*++*s))
+    ++ *s;
+
+  /* do not use numeric and abi names at the same time.  */
+  if (use_xreg && **s != 'x')
+    return FALSE;
+
+  /* reg1 */
+  if (!reg_lookup (s, RCLASS_GPR, &regno)
+      || regno != X_S0)
+    return FALSE;
+
+  /* skip "whitespace - whitespace" pattern.  */
+  while (ISSPACE (**s))
+    ++ *s;
+  if (**s == '}')
+    return TRUE;
+  else if (**s != '-')
+    return FALSE;
+  while (ISSPACE (*++*s))
+    ++ *s;
+
+  /* do not use numeric and abi names at the same time.  */
+  if (use_xreg && **s != 'x')
+    return FALSE;
+
+  /* reg2 */
+  if (!reg_lookup (s, RCLASS_GPR, &regno)
+      || !(*rlist = regno_to_rlist (regno))
+      || regno <= X_S0
+      || (use_xreg && regno != X_S1))
+    return FALSE;
+
+  if (use_xreg)
+    {
+      /* skip "white space, white space" pattern.  */
+      while (ISSPACE (**s))
+	++ *s;
+      if (**s == '}')
+	return TRUE;
+      else if (**s != ',')
+	return FALSE;
+      while (ISSPACE (*++*s))
+	++ *s;
+
+      /* do not use numeric and abi names at the same time.  */
+      if (use_xreg && **s != 'x')
+	return FALSE;
+
+      /* reg3 */
+      if (!reg_lookup (s, RCLASS_GPR, &regno)
+	  || regno != X_S2)
+	return FALSE;
+
+      /* skip "whitespace - whitespace" pattern.  */
+      while (ISSPACE (**s))
+	++ *s;
+      if (**s == '}')
+	return TRUE;
+      else if (**s != '-')
+	return FALSE;
+      while (ISSPACE (*++*s))
+	++ *s;
+
+      /* reg4 */
+      if (!reg_lookup (s, RCLASS_GPR, &regno)
+	  || !(*rlist = regno_to_rlist (regno))
+	  || regno <= X_S2)
+        return FALSE;
+    }
+
+  return TRUE;
+}
+
 #define USE_BITS(mask,shift) (used_bits |= ((insn_t)(mask) << (shift)))
 
 /* For consistency checking, verify that all bits are specified either
@@ -1120,6 +1254,10 @@ validate_riscv_insn (const struct riscv_opcode *opc, int length)
 		case 'H': used_bits |= ENCODE_ZCMB_HALFWORD_UIMM (-1U); break;
 		/* halfword immediate operators, load/store halfword insns.  */
 		case 'B': used_bits |= ENCODE_ZCMB_BYTE_UIMM (-1U); break;
+		/* immediate offset operand for cm.push and cm.pop.  */
+		case 'p': used_bits |= ENCODE_ZCMP_SPIMM (-1U); break;
+		/* register list operand for cm.push and cm.pop. */
+		case 'r': USE_BITS (OP_MASK_RLIST, OP_SH_RLIST); break;
 		default:
 		  goto unknown_validate_operand;
 		}
@@ -1155,6 +1293,8 @@ validate_riscv_insn (const struct riscv_opcode *opc, int length)
 	case ',': break;
 	case '(': break;
 	case ')': break;
+	case '{': break;
+	case '}': break;
 	case '!': break;
 	case '<': USE_BITS (OP_MASK_SHAMTW, OP_SH_SHAMTW); break;
 	case '>': USE_BITS (OP_MASK_SHAMT, OP_SH_SHAMT); break;
@@ -2726,6 +2866,27 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 
 		      ip->insn_opcode |= ENCODE_ZCMB_BYTE_UIMM (imm_expr->X_add_number);
 		      goto rvc_imm_done;
+		    case 'r':
+		      /* we use regno to store reglist value here.  */
+		      if (!reglist_lookup (&asarg, &regno))
+			break;
+		      INSERT_OPERAND (RLIST, *ip, regno);
+		      continue;
+		    case 'p':
+		      if (my_getSmallExpression (imm_expr, imm_reloc, asarg, p)
+			  || imm_expr->X_op != O_constant)
+			break;
+		      /* convert stack adjust of cm.push to a positive offset. */
+		      if (ip->insn_mo->match == MATCH_CM_PUSH)
+			imm_expr->X_add_number *= -1;
+		      /* subtract base stack adjust. */
+		      imm_expr->X_add_number -=
+			  riscv_get_base_spimm (ip->insn_opcode, &riscv_rps_as);
+		      if (!VALID_ZCMP_SPIMM (imm_expr->X_add_number))
+			break;
+		      ip->insn_opcode |=
+			  ENCODE_ZCMP_SPIMM (imm_expr->X_add_number);
+		      goto rvc_imm_done;
 
 		    default:
 		      goto unknown_riscv_ip_operand;
@@ -2912,6 +3073,8 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 
 	    case '(':
 	    case ')':
+	    case '{':
+	    case '}':
 	    case '[':
 	    case ']':
 	    case '!':

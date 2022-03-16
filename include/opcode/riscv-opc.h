@@ -2074,6 +2074,15 @@
 #define MASK_CM_SB 0xf003
 #define MATCH_CM_SH 0xb000
 #define MASK_CM_SH 0xf003
+/* ZCMP instructions.  */
+#define MATCH_CM_PUSH 0xb802
+#define MASK_CM_PUSH 0xff03
+#define MATCH_CM_POP 0xba02
+#define MASK_CM_POP 0xff03
+#define MATCH_CM_POPRET 0xbe02
+#define MASK_CM_POPRET 0xff03
+#define MATCH_CM_POPRETZ 0xbc02
+#define MASK_CM_POPRETZ 0xff03
 /* Privileged CSR addresses.  */
 #define CSR_USTATUS 0x0
 #define CSR_UIE 0x4
