@@ -46,4 +46,5 @@ INITIAL_READONLY_SECTIONS="${RELOCATING+${CREATE_SHLIB-${INITIAL_READONLY_SECTIO
 # from data in that case.
 OTHER_END_SYMBOLS="${CREATE_SHLIB-__BSS_END__ = .;
     __global_pointer$ = MIN(__SDATA_BEGIN__ + 0x800,
-		            MAX(__DATA_BEGIN__ + 0x800, __BSS_END__ - 0x800));}"
+		            MAX(__DATA_BEGIN__ + 0x800, __BSS_END__ - 0x800));
+    __jvt_base$ = 0x0;}"
