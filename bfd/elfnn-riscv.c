@@ -359,7 +359,7 @@ riscv_init_table_jump_htab (riscv_table_jump_htab_t *htab)
 {
   htab->names = bfd_zmalloc (sizeof (const char *) * 256);
   htab->savings = bfd_zmalloc (sizeof (unsigned int) * 256);
-  htab->tbj_indexes = bfd_zmalloc (RISCV_ELF_WORD_BYTES * 256);
+  htab->tbj_indexes = bfd_zmalloc (sizeof (bfd_vma) * 256);
 
   htab->tbljt_htab = htab_create (50, riscv_table_jump_htab_hash,
 			      riscv_table_jump_htab_entry_eq, free);
