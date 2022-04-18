@@ -122,7 +122,7 @@ elfNN_riscv_mkobject (bfd *abfd)
 #include "elf/internal.h"
 
 /* debug use */
-#define ZCMT_PRINT_TABLE_JUMP_ENTRIES 0
+#define ZCMT_PRINT_TABLE_JUMP_ENTRIES 1
 
 /* Hash table for storing table jump candidate entries.  */
 typedef struct
@@ -132,6 +132,9 @@ typedef struct
   uintNN_t *tbj_indexes;
   asection *tablejump_sec;
   bfd *tablejump_sec_owner;
+  /* used to calculate size of table jump section.  */
+  int end_idx;
+  unsigned int total_saving;
 
   /* debug use.  */
   unsigned int *savings;
@@ -360,6 +363,8 @@ riscv_init_table_jump_htab (riscv_table_jump_htab_t *htab)
   htab->names = bfd_zmalloc (sizeof (const char *) * 256);
   htab->savings = bfd_zmalloc (sizeof (unsigned int) * 256);
   htab->tbj_indexes = bfd_zmalloc (RISCV_ELF_WORD_BYTES * 256);
+  htab->end_idx = 0;
+  htab->total_saving = 0;
 
   htab->tbljt_htab = htab_create (50, riscv_table_jump_htab_hash,
 			      riscv_table_jump_htab_entry_eq, free);
@@ -4624,8 +4629,6 @@ _bfd_riscv_relax_call (bfd *abfd, asection *sec, asection *sym_sec,
 	  || benefit == 0)
         return true;
 
-      *again = true;
-
       return riscv_update_table_jump_entry (tbljal_htab, symval, benefit, name);
     }
 
@@ -5056,8 +5059,6 @@ _bfd_riscv_record_jal (bfd *abfd,
       || name == NULL)
     return true;
 
-  *again = true;
-
   return riscv_update_table_jump_entry (tbljal_htab, symval, 2, name);
 }
 
@@ -5128,7 +5129,7 @@ riscv_record_table_jump_index (htab_t htab, riscv_table_jump_args *args)
   unsigned int idx;
   riscv_table_jump_htab_t *tbj_htab = args->htab;
   riscv_table_jump_htab_entry search;
-  riscv_table_jump_htab_entry *entry;
+  riscv_table_jump_htab_entry *entry = NULL;
 
   for (idx = args->start; idx <= args->end && tbj_htab->tbj_indexes[idx]; idx++)
     {
@@ -5138,7 +5139,12 @@ riscv_record_table_jump_index (htab_t htab, riscv_table_jump_args *args)
 
       BFD_ASSERT (entry != NULL);
       entry->index = idx + 1;
+      tbj_htab->total_saving += tbj_htab->savings[idx];
     }
+
+  /* True if there is at least one entry in table jump section.  */
+  if (entry && entry->index)
+    tbj_htab->end_idx = entry->index;
 
   return true;
 }
@@ -5216,10 +5222,9 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
   Elf_Internal_Rela *relocs;
   bool ret = false;
   unsigned int i;
-  bfd_vma max_alignment, reserve_size = 0;
+  bfd_vma max_alignment, reserve_size = 0, used_bytes, trimmed_bytes;
   riscv_pcgp_relocs pcgp_relocs;
   riscv_table_jump_htab_t *table_jump_htab = htab->table_jump_htab;
-  static bool print_tablejump_result = true;
 
   *again = false;
 
@@ -5256,14 +5261,43 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
     max_alignment = _bfd_riscv_get_max_alignment (sec);
 
   if (info->relax_pass == 0
-      && info->relax_trip > 0
+      && info->relax_trip == 1
       && riscv_use_table_jump (info)
-      && print_tablejump_result)
+      /* Table jump entries are not trimmed.  */
+      && table_jump_htab->end_idx >= 0)
     {
-      print_tablejump_result = false;
       riscv_table_jump_args args = {table_jump_htab, 0, 0};
-
+      struct elf_link_hash_entry *jvt_sym;
+      /* Estimate size savings if table jump is used.  */
       riscv_table_jump_profiling (table_jump_htab, &args);
+
+      used_bytes = table_jump_htab->end_idx * RISCV_ELF_WORD_BYTES;
+      trimmed_bytes =  (256 - table_jump_htab->end_idx) * RISCV_ELF_WORD_BYTES;
+
+      /* Do not use table jump if it brings no benefits. */
+      if (table_jump_htab->total_saving < used_bytes)
+	{
+	  used_bytes = 0;
+	  trimmed_bytes = table_jump_htab->tablejump_sec->size;
+	  jvt_sym = elf_link_hash_lookup (elf_hash_table (info),
+				  RISCV_TABLE_JUMP_BASE_SYMBOL,
+				  false, false, true);
+	  printf("jvt_sym->root.u.def.section=%lu, jvt_sym->root.u.def.value=%lu\n", jvt_sym->root.u.def.section, jvt_sym->root.u.def.value);
+	  jvt_sym->root.u.def.section = bfd_abs_section_ptr;
+	}
+
+      /* Set table jump entries section size. */
+      if (!riscv_relax_delete_bytes (table_jump_htab->tablejump_sec_owner,
+				  table_jump_htab->tablejump_sec,
+				  used_bytes, trimmed_bytes, info, NULL))
+	return false;
+
+      table_jump_htab->end_idx = -1;
+
+      if (table_jump_htab->tablejump_sec->size != 0)
+        *again = true;
+
+      return true;
     }
 
   /* Examine and consider relaxing each reloc.  */
@@ -5292,6 +5326,11 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
 
 	  if (info->relax_trip > 0)
 	    relax_func = _bfd_riscv_table_jump_mark;
+	  else
+	    /* Need to trip at least twice to (1) profile and generate
+	      table jump instructions, and (2) trim table jump entry
+	      sub-section or delete it when table jump is not generated.  */
+	    *again = true;
 	}
       else if (info->relax_pass == 1)
 	{
