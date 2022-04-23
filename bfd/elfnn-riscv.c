@@ -129,6 +129,9 @@ typedef struct
 {
   htab_t tbljt_htab;
   htab_t tbljalt_htab;
+  /* This hash table is used to record which section is travelled before at the
+    table jump record stage.  */
+  htab_t record_htab;
   uintNN_t *tbj_indexes;
   asection *tablejump_sec;
   bfd *tablejump_sec_owner;
@@ -141,6 +144,11 @@ typedef struct
   unsigned int *savings;
   const char **names;
 } riscv_table_jump_htab_t;
+
+typedef struct
+{
+  unsigned int sec_id;
+} riscv_zcmt_record_entry;
 
 typedef struct
 {
@@ -345,6 +353,20 @@ link_hash_newfunc (struct bfd_hash_entry *entry,
 }
 
 static hashval_t
+riscv_record_htab_hash (const void *entry)
+{
+  const riscv_zcmt_record_entry *e = entry;
+  return (hashval_t)e->sec_id;
+}
+
+static int
+riscv_record_htab_entry_eq (const void *entry1, const void *entry2)
+{
+  const riscv_zcmt_record_entry *e1 = entry1, *e2 = entry2;
+  return e1->sec_id == e2->sec_id;
+}
+
+static hashval_t
 riscv_table_jump_htab_hash (const void *entry)
 {
   const riscv_table_jump_htab_entry *e = entry;
@@ -367,6 +389,11 @@ riscv_init_table_jump_htab (riscv_table_jump_htab_t *htab)
   htab->end_idx = 0;
   htab->total_saving = 0;
 
+  htab->record_htab = htab_create (50, riscv_record_htab_hash,
+			      riscv_record_htab_entry_eq, free);
+  if (htab->record_htab == NULL)
+    return false;
+
   htab->tbljt_htab = htab_create (50, riscv_table_jump_htab_hash,
 			      riscv_table_jump_htab_entry_eq, free);
   if (htab->tbljt_htab == NULL)
@@ -383,6 +410,7 @@ riscv_free_table_jump_htab (riscv_table_jump_htab_t *htab)
   free (htab->names);
   free (htab->savings);
   free (htab->tbj_indexes);
+  htab_delete (htab->record_htab);
   htab_delete (htab->tbljt_htab);
   htab_delete (htab->tbljalt_htab);
 }
@@ -4481,6 +4509,9 @@ riscv_get_symbol_name (bfd *abfd, Elf_Internal_Rela *rel)
   Elf_Internal_Shdr *symtab_hdr = &elf_symtab_hdr (abfd);
   const char *name;
 
+  if (!symtab_hdr->contents)
+    return NULL;
+
   if (ELFNN_R_SYM (rel->r_info) < symtab_hdr->sh_info)
     {
       /* A local symbol.  */
@@ -4620,6 +4651,12 @@ _bfd_riscv_relax_call (bfd *abfd, asection *sec, asection *sym_sec,
       auipc = MATCH_JALR | (rd << OP_SH_RD);
     }
 
+
+  if (riscv_get_symbol_name (abfd, rel))
+    {
+      printf("link_info->relax_pass=%u,sym name=%s,len=%d,VALID_JTYPE_IMM (foff)=%lu,rvc=%lu,r_type=%u\n", link_info->relax_pass, riscv_get_symbol_name (abfd, rel), len, VALID_JTYPE_IMM (foff), rvc, r_type);
+    }
+
   /* Table jump profiling stage. It will be moved out of the relax_call function. */
   if (link_info->relax_pass == 0)
     {
@@ -4629,12 +4666,16 @@ _bfd_riscv_relax_call (bfd *abfd, asection *sec, asection *sym_sec,
 
       htab_t tbljal_htab = riscv_get_table_jump_htab (link_info, rd);
       const char *name = riscv_get_symbol_name (abfd, rel);
-      unsigned int benefit = VALID_JTYPE_IMM (foff) ? len - 2 : 8 - 2;
+      unsigned int benefit = len - 2;
 
       if (tbljal_htab == NULL
 	  || name == NULL
 	  || benefit == 0)
-	return true;
+	{
+	  if (name)
+	    printf("sym name=%s,benefit=%d,VALID_JTYPE_IMM (foff)=%lu,rvc=%lu,r_type=%u\n", name, benefit, VALID_JTYPE_IMM (foff), rvc, r_type);
+	  return true;
+	}
 
       return riscv_update_table_jump_entry (tbljal_htab, symval, benefit, name);
     }
@@ -5218,6 +5259,31 @@ bfd_elfNN_riscv_set_data_segment_info (struct bfd_link_info *info,
   htab->data_segment_phase = data_segment_phase;
 }
 
+static bool
+riscv_section_has_recorded (riscv_table_jump_htab_t *table_jump_htab, asection *sec)
+{
+  riscv_zcmt_record_entry search = {sec->section_id};
+  riscv_zcmt_record_entry *entry = htab_find (table_jump_htab->record_htab, &search);
+
+  if (entry != NULL)
+    return true;
+
+  riscv_zcmt_record_entry **slot =
+      (riscv_zcmt_record_entry **) htab_find_slot (
+	        table_jump_htab->record_htab, &search, INSERT);
+
+  BFD_ASSERT (*slot == NULL);
+
+  *slot = (riscv_zcmt_record_entry *) bfd_zmalloc (
+	    sizeof (riscv_zcmt_record_entry));
+
+  BFD_ASSERT (*slot != NULL);
+
+  (*slot)->sec_id = sec->section_id;
+
+  return false;
+}
+
 /* Relax a section.
 
    Pass 0: Shortens code sequences for LUI/CALL/TPREL/PCREL relocs.
@@ -5291,12 +5357,21 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
       instructions with the index encoded.
 
      relax_trip 3: Trim unused slots in the table jump section.  */
+
   printf("filename = %s, id = %d, name = %s, info->relax_pass == %d, info->relax_trip == %d\n", abfd->filename, sec->id, sec->name, info->relax_pass, info->relax_trip);
+  printf("htab->data_segment_phase = %d\n", *(htab->data_segment_phase));
+
   if (info->relax_pass == 0
       && riscv_use_table_jump (info))
     {
-      if (info->relax_trip == 1)
+      if (info->relax_trip == 0 && *(htab->data_segment_phase) != 0)
 	{
+	  //   if (riscv_section_has_recorded (table_jump_htab, sec))
+	  return true;
+	}
+      else if (info->relax_trip == 1)
+	{
+	  *again = true;
 	  /* Profiling stage finished.  */
 	  if (table_jump_htab->end_idx != 0)
 	    return true;
@@ -5304,7 +5379,6 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
 	  riscv_table_jump_args args = {table_jump_htab, 0, 0};
 	  /* Estimate size savings if table jump is used.  */
 	  riscv_table_jump_profiling (table_jump_htab, &args);
-	  *again = true;
 	  return true;
 	}
       else if (info->relax_trip == 2)
@@ -5323,6 +5397,10 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
 				table_jump_htab->tablejump_sec,
 				0, table_jump_htab->tablejump_sec->size, info, NULL);
 	    }
+	  else if (table_jump_htab->tablejump_sec->size == 0)
+	    return true;
+	  else if (table_jump_htab->tablejump_sec->size > 0)
+	    *again = true;
 	}
       else if (info->relax_trip == 3)
 	{
@@ -5354,6 +5432,7 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
       bfd_vma symval;
       char symtype;
       bool undefined_weak = false;
+      const char *sname = NULL;
 
       relax_func = NULL;
       if (info->relax_pass == 0)
@@ -5370,6 +5449,9 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
 		relax_func = _bfd_riscv_record_jal;
 	      else
 		continue;
+	      sname = riscv_get_symbol_name (abfd, rel);
+	      if (sname)
+	        printf("symbol name=%s\n", sname);
 	      *again = true;
 	    }
 	  else if (info->relax_trip == 2)
