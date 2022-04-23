@@ -122,7 +122,7 @@ elfNN_riscv_mkobject (bfd *abfd)
 #include "elf/internal.h"
 
 /* debug use */
-#define ZCMT_PRINT_TABLE_JUMP_ENTRIES 1
+#define ZCMT_PRINT_TABLE_JUMP_ENTRIES 0
 
 /* Hash table for storing table jump candidate entries.  */
 typedef struct
@@ -393,7 +393,6 @@ riscv_update_table_jump_entry (htab_t htab,
 			       const char *name)
 {
   riscv_table_jump_htab_entry search = {addr, 0, NULL, 0};
-  printf("name = %s, addr = %8lx, benefit = %lu\n", name, addr, benefit);
   riscv_table_jump_htab_entry *entry = htab_find (htab, &search);
 
   if (entry == NULL)
@@ -4622,12 +4621,6 @@ _bfd_riscv_relax_call (bfd *abfd, asection *sec, asection *sym_sec,
       auipc = MATCH_JALR | (rd << OP_SH_RD);
     }
 
-
-  if (riscv_get_symbol_name (abfd, rel))
-    {
-      printf("link_info->relax_pass=%u,sym name=%s,len=%d,VALID_JTYPE_IMM (foff)=%lu,rvc=%lu,r_type=%u\n", link_info->relax_pass, riscv_get_symbol_name (abfd, rel), len, VALID_JTYPE_IMM (foff), rvc, r_type);
-    }
-
   /* Table jump profiling stage. It will be moved out of the relax_call function. */
   if (link_info->relax_pass == 0)
     {
@@ -4642,11 +4635,7 @@ _bfd_riscv_relax_call (bfd *abfd, asection *sec, asection *sym_sec,
       if (tbljal_htab == NULL
 	  || name == NULL
 	  || benefit == 0)
-	{
-	  if (name)
-	    printf("sym name=%s,benefit=%d,VALID_JTYPE_IMM (foff)=%lu,rvc=%lu,r_type=%u\n", name, benefit, VALID_JTYPE_IMM (foff), rvc, r_type);
-	  return true;
-	}
+	return true;
 
       return riscv_update_table_jump_entry (tbljal_htab, symval, benefit, name);
     }
@@ -5304,9 +5293,6 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
 
      relax_trip 3: Trim unused slots in the table jump section.  */
 
-  printf("filename = %s, id = %d, name = %s, info->relax_pass == %d, info->relax_trip == %d\n", abfd->filename, sec->id, sec->name, info->relax_pass, info->relax_trip);
-  printf("htab->data_segment_phase = %d\n", *(htab->data_segment_phase));
-
   if (info->relax_pass == 0
       && riscv_use_table_jump (info))
     {
@@ -5329,8 +5315,6 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
       /* Skip generating table jump instructions if they do not help reduce code size.   */
       else if (info->relax_trip == 2)
 	{
-	  printf ("table_jump_htab->total_saving=%lu, table_jump_htab->end_idx * RISCV_ELF_WORD_BYTES=%lu\n",
-		  table_jump_htab->total_saving, table_jump_htab->end_idx * RISCV_ELF_WORD_BYTES);
 	  /* Check if table jump can save size. Skip generating table
 	    jump instruction if not.  */
 	  if (table_jump_htab->total_saving <=
@@ -5361,7 +5345,6 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
 
 	  used_bytes = table_jump_htab->end_idx * RISCV_ELF_WORD_BYTES;
 	  trimmed_bytes = (256 - table_jump_htab->end_idx) * RISCV_ELF_WORD_BYTES;
-	  printf("used_bytes=%d, trimmed_bytes=%d\n", used_bytes, trimmed_bytes);
 	  /* Trim unused slots.  */
 	  if (!riscv_relax_delete_bytes (table_jump_htab->tablejump_sec_owner,
 				table_jump_htab->tablejump_sec,
@@ -5383,7 +5366,6 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
       bfd_vma symval;
       char symtype;
       bool undefined_weak = false;
-      const char *sname = NULL;
 
       relax_func = NULL;
       if (info->relax_pass == 0)
@@ -5400,9 +5382,6 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
 		relax_func = _bfd_riscv_record_jal;
 	      else
 		continue;
-	      sname = riscv_get_symbol_name (abfd, rel);
-	      if (sname)
-	        printf("symbol name=%s\n", sname);
 	      *again = true;
 	    }
 	  else if (info->relax_trip == 2)
