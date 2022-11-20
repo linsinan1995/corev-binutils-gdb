@@ -1,0 +1,36 @@
+		=== libctf Summary ===
+
+# of expected passes		4
+# of unsupported tests		2
+
+		=== binutils Summary ===
+
+# of expected passes		207
+# of expected failures		1
+# of untested testcases		15
+# of unsupported tests		13
+
+		=== gas Summary ===
+
+# of expected passes		1234
+# of expected failures		23
+# of unsupported tests		9
+
+		=== ld Summary ===
+
+# of expected passes		437
+# of expected failures		13
+# of untested testcases		22
+# of unsupported tests		200
+
+============================================================================
+Testsuite summary for package-unused version-unused
+============================================================================
+# TOTAL: 33
+# PASS:  33
+# SKIP:  0
+# XFAIL: 0
+# FAIL:  0
+# XPASS: 0
+# ERROR: 0
+============================================================================
